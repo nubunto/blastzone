@@ -9,6 +9,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <!-- Temporary until the four-project restructure: keep new projects out of this glob. -->
+  <ItemGroup>
+    <Compile Remove="src/**;tests/**" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Ahwoo.BRUTAL.Core" Version="2026.10.4" />
     <PackageReference Include="Ahwoo.BRUTAL.Sdl" Version="2026.10.3" />

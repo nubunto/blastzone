@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ADR 0013: the Simulation has no package or project dependencies. -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>Blastzone.Simulation</RootNamespace>
+  </PropertyGroup>
+
+</Project>
