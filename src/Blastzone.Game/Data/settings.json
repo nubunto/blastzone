@@ -1,0 +1,35 @@
+{
+  // Match-wide settings for the first-party Game (ADR 0005). Distances in Stage units, speeds in units per Tick.
+  "maxCharacters": 4,
+  "stick": {
+    "walkThreshold": 24,
+    "tapThreshold": 80,
+    "tapOriginMax": 40,
+    "downTapThreshold": 64,
+    "ledgeThreshold": 64,
+    "airDodgeThreshold": 40
+  },
+  // Buffer Window in Ticks: "default" for every action type, optionally overridden per type
+  // ("jump", "shield", "dash", "down").
+  "bufferWindow": { "default": 6 },
+  // Air Dodge presets are data: pick one with "airDodge" (the Engine falls back to "melee").
+  "airDodge": "melee",
+  "airDodgePresets": {
+    "melee":    { "directional": true,  "zeroVelocityAtEnd": false, "helplessAfter": true },
+    "ultimate": { "directional": false, "zeroVelocityAtEnd": true,  "helplessAfter": false },
+    "rivals2":  { "directional": true,  "zeroVelocityAtEnd": true,  "helplessAfter": false }
+  },
+  "ledge": {
+    "trump": false,
+    "intangibilityTicks": 30,
+    "regrabIntangibilityShrinkTicks": 8,
+    "exitIntangibilityTicks": 0,
+    "regrabCooldownTicks": 20,
+    "trumpVelocityX": 1.5,
+    "trumpVelocityY": 1.5,
+    "trumpStunTicks": 20,
+    "trumpRegrabCooldownTicks": 30
+  },
+  "teeterMaxSpeed": 1.6,
+  "wallJumpReach": 2
+}

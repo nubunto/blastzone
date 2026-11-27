@@ -1,0 +1,41 @@
+{
+  // Heavy: 1 double jump, no Wall Jump.
+  "name": "Bastion",
+  "weight": 115,
+  "ground": {
+    "walkSpeed": 0.9, "walkAcceleration": 0.12,
+    "dashInitialSpeed": 1.5, "dashTicks": 15,
+    "runSpeed": 1.7, "runAcceleration": 0.08, "runTurnTicks": 10,
+    "traction": 0.06
+  },
+  "air": {
+    "airSpeed": 0.8, "airAcceleration": 0.04, "airFriction": 0.015,
+    "gravity": 0.11, "maxFallSpeed": 1.9, "fastFallSpeed": 2.4
+  },
+  "jump": {
+    "jumpSquatTicks": 5,
+    "fullHopHeight": 30, "shortHopHeight": 12, "doubleJumpHeight": 26,
+    "airJumps": 1,
+    "landingTicks": 6, "helplessLandingTicks": 14
+  },
+  "airDodge": { "speed": 2.6, "decay": 0.9, "ticks": 30, "intangibilityTicks": 22, "landingTicks": 12 },
+  "wallJump": { "enabled": false, "speedX": 0, "speedY": 0 },
+  "ledge": {
+    "grabHalfWidth": 10, "grabBottom": 9, "grabTop": 26,
+    "hangOffsetX": 5, "hangOffsetY": 17,
+    "actionableTicks": 8,
+    "getupTicks": 32, "getupDistance": 12, "getupIntangibilityTicks": 24,
+    "rollTicks": 40, "rollDistance": 30, "rollIntangibilityTicks": 26,
+    "jumpHeight": 28
+  },
+  "collisionBoxes": {
+    "standing":  { "width": 12, "height": 20 },
+    "crouching": { "width": 12, "height": 13 },
+    "airborne":  { "width": 12, "height": 18 },
+    "ledge":     { "width": 8, "height": 17 }
+  },
+  "hurtboxes": [
+    { "x1": 0, "y1": 6, "x2": 0, "y2": 15, "radius": 6 },
+    { "x1": 1.5, "y1": 21, "x2": 1.5, "y2": 21, "radius": 4.5 }
+  ]
+}

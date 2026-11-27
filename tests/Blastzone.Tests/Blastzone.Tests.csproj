@@ -24,6 +24,13 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Blastzone.Simulation\Blastzone.Simulation.csproj" />
     <ProjectReference Include="..\..\src\Blastzone.Simulation.Analyzers\Blastzone.Simulation.Analyzers.csproj" />
+    <!-- For the data loaders (Blastzone.Engine.Data) and the input mapping. -->
+    <ProjectReference Include="..\..\src\Blastzone.Engine\Blastzone.Engine.csproj" />
+  </ItemGroup>
+
+  <!-- The Game's real data, so loader tests check the files that ship. -->
+  <ItemGroup>
+    <None Include="..\..\src\Blastzone.Game\Data\**\*.json" LinkBase="GameData" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
