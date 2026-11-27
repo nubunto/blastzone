@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-test:
+    name: Build and test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest] # macOS ARM64 and Windows x64 (brief: first vertical slice)
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+
+      - name: Show runtime and architecture
+        run: dotnet --info
+
+      - name: Build
+        run: dotnet build Blastzone.slnx -c Release
+
+      - name: Test
+        run: dotnet test Blastzone.slnx -c Release --no-build
+        env:
+          BLASTZONE_HASH_OUT: ${{ runner.temp }}/determinism-${{ matrix.os }}.txt
+
+      - name: A float in Blastzone.Simulation must fail the build
+        shell: bash
+        run: |
+          probe=src/Blastzone.Simulation/CiFloatProbe.cs
+          printf 'namespace Blastzone.Simulation;\npublic static class CiFloatProbe { public static float Speed = 1.5f; }\n' > "$probe"
+          if dotnet build src/Blastzone.Simulation -c Release > build.log 2>&1; then
+            echo "::error::Blastzone.Simulation built with a float in it; the analyzer is not running."
+            exit 1
+          fi
+          grep -q "error BZS001" build.log || { cat build.log; echo "::error::Build failed, but not with BZS001."; exit 1; }
+          echo "Build failed with BZS001 as expected."
+          rm "$probe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: determinism-${{ matrix.os }}
+          path: ${{ runner.temp }}/determinism-${{ matrix.os }}.txt
+          if-no-files-found: error
+
+  compare-hashes:
+    name: Compare determinism hashes across platforms
+    needs: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: determinism-*
+          path: hashes
+          merge-multiple: true
+
+      - name: Hashes must be identical on every platform
+        run: |
+          ls -l hashes
+          head -2 hashes/determinism-macos-latest.txt
+          if diff -u hashes/determinism-macos-latest.txt hashes/determinism-windows-latest.txt > hashes.diff; then
+            echo "macOS ARM64 and Windows x64 produced identical hashes for every Tick."
+          else
+            echo "::error::Cross-platform desync. First differences:"
+            head -40 hashes.diff
+            exit 1
+          fi

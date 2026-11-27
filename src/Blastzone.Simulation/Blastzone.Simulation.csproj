@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ADR 0013: the Simulation has no package or project dependencies. -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>Blastzone.Simulation</RootNamespace>
+  </PropertyGroup>
+
+  <!-- The only reference: a compile-time analyzer that bans floats, Math, clocks, Random and
+       reflection (ADR 0013). It is not referenced at run time. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Blastzone.Simulation.Analyzers\Blastzone.Simulation.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

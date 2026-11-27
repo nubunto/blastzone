@@ -4,7 +4,7 @@ using Brutal.ShaderCApi;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 
-namespace Blastzone.Render;
+namespace Blastzone.Engine.Render;
 
 /// <summary>
 /// Minimal Vulkan renderer: clears to a solid color and draws one centered RGB triangle.

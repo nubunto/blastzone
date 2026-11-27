@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/bench/">
+    <Project Path="bench/Blastzone.Benchmarks/Blastzone.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Blastzone.Engine/Blastzone.Engine.csproj" />
+    <Project Path="src/Blastzone.Game/Blastzone.Game.csproj" />
+    <Project Path="src/Blastzone.Simulation.Analyzers/Blastzone.Simulation.Analyzers.csproj" />
+    <Project Path="src/Blastzone.Simulation/Blastzone.Simulation.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Blastzone.Tests/Blastzone.Tests.csproj" />
+  </Folder>
+</Solution>
