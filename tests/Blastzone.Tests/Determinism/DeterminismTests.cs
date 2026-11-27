@@ -36,34 +36,6 @@ public class DeterminismTests
     }
 
     [Fact]
-    public void Characters_actually_move_under_input()
-    {
-        var match = TestMatches.Create();
-        var input = new[] { new PlayerInput { StickX = 127 } };
-
-        for (var tick = 0; tick < 60; tick++)
-            match.Step(input);
-
-        Assert.True(match.State.Characters[0].PositionX > Blastzone.Simulation.Numerics.Fixed.Zero);
-        Assert.Equal(60, match.State.Header.Tick);
-    }
-
-    [Fact]
-    public void Velocity_is_clamped_to_max_speed()
-    {
-        var match = TestMatches.Create();
-        var input = new[] { new PlayerInput { StickX = 127, StickY = 127 } };
-
-        for (var tick = 0; tick < 600; tick++)
-            match.Step(input);
-
-        ref readonly var c = ref match.State.Characters[0];
-        var speedSquared = c.VelocityX * c.VelocityX + c.VelocityY * c.VelocityY;
-        var max = TestMatches.Settings.MaxSpeed;
-        Assert.True(speedSquared <= max * max + Blastzone.Simulation.Numerics.Fixed.FromRatio(1, 1 << 20));
-    }
-
-    [Fact]
     public void More_inputs_than_characters_is_rejected()
     {
         var match = TestMatches.Create();

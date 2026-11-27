@@ -1,19 +1,12 @@
 using Blastzone.Simulation;
-using Blastzone.Simulation.Numerics;
 
 namespace Blastzone.Tests.Determinism;
 
 static class TestMatches
 {
-    public static MatchSettings Settings => new()
-    {
-        MaxCharacters = InputStreams.DefaultPlayers,
-        Acceleration = Fixed.FromRatio(1, 64),
-        Friction = Fixed.FromRatio(15, 16),
-        MaxSpeed = Fixed.FromRatio(3, 2),
-    };
-
-    public static Match Create() => new(Settings);
+    /// <summary>Four Players alternating the two test Characters.</summary>
+    public static Match Create() => new(TestData.Settings, TestData.Stage,
+        [TestData.Fast, TestData.Heavy, TestData.Fast, TestData.Heavy]);
 
     public static ReadOnlySpan<PlayerInput> InputsAt(PlayerInput[] stream, int tick, int players = InputStreams.DefaultPlayers) =>
         stream.AsSpan(tick * players, players);
