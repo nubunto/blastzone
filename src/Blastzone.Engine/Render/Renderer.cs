@@ -1,3 +1,4 @@
+using Brutal;
 using Brutal.SdlApi;
 using Brutal.Numerics;
 using Brutal.ShaderCApi;
@@ -7,8 +8,9 @@ using Brutal.VulkanApi.Abstractions;
 namespace Blastzone.Engine.Render;
 
 /// <summary>
-/// Minimal Vulkan renderer: clears to a solid color and draws one centered RGB triangle.
-/// No depth test. Fixed-size window, so the swapchain is never rebuilt.
+/// Minimal Vulkan renderer for flat 2D shapes: each <see cref="Shape"/> is one quad drawn with push
+/// constants (no vertex buffers), and the fragment shader cuts rectangles, capsules and outlines out of
+/// it with signed distances. No depth test. Fixed-size window, so the swapchain is never rebuilt.
 /// Adapted from BRUTAL's samples/Demo/DemoVulkan.cs.
 /// </summary>
 public sealed unsafe class Renderer : IDisposable
@@ -17,27 +19,62 @@ public sealed unsafe class Renderer : IDisposable
 
     const string VertexGlsl = """
         #version 450
-        layout(location = 0) out vec3 color;
+        layout(push_constant) uniform Shape
+        {
+            vec4 bounds;  // world-space quad: min.xy, max.xy
+            vec4 segment; // capsule ends a.xy, b.xy (or rectangle min/max)
+            vec4 color;
+            vec4 params;  // x radius, y kind, z outline width
+            vec4 camera;  // world to clip: scale.xy, offset.xy
+        } shape;
+        layout(location = 0) out vec2 world;
 
-        // Three corners of a centered triangle in clip space (Vulkan: +Y is down).
-        const vec2 positions[3] = vec2[](vec2(0.0, -0.5), vec2(0.5, 0.5), vec2(-0.5, 0.5));
-        const vec3 colors[3] = vec3[](vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, 1.0));
+        const vec2 corners[6] = vec2[](vec2(0, 0), vec2(1, 0), vec2(1, 1), vec2(0, 0), vec2(1, 1), vec2(0, 1));
 
         void main()
         {
-            gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
-            color = colors[gl_VertexIndex];
+            world = mix(shape.bounds.xy, shape.bounds.zw, corners[gl_VertexIndex]);
+            gl_Position = vec4(world * shape.camera.xy + shape.camera.zw, 0.0, 1.0);
         }
         """;
 
     const string FragmentGlsl = """
         #version 450
-        layout(location = 0) in vec3 color;
+        layout(push_constant) uniform Shape
+        {
+            vec4 bounds;
+            vec4 segment;
+            vec4 color;
+            vec4 params;
+            vec4 camera;
+        } shape;
+        layout(location = 0) in vec2 world;
         layout(location = 0) out vec4 outColor;
+
+        float capsuleDistance(vec2 p, vec2 a, vec2 b, float r)
+        {
+            vec2 pa = p - a, ba = b - a;
+            float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+            return length(pa - ba * h) - r;
+        }
+
+        float rectDistance(vec2 p, vec2 lo, vec2 hi)
+        {
+            vec2 d = max(lo - p, p - hi);
+            return max(d.x, d.y); // negative inside
+        }
 
         void main()
         {
-            outColor = vec4(color, 1.0);
+            int kind = int(shape.params.y + 0.5);
+            float width = shape.params.z;
+            float d = kind <= 1
+                ? rectDistance(world, shape.segment.xy, shape.segment.zw)
+                : capsuleDistance(world, shape.segment.xy, shape.segment.zw, shape.params.x);
+            bool outline = kind == 1 || kind == 3;
+            if (d > 0.0 || (outline && d < -width))
+                discard;
+            outColor = shape.color;
         }
         """;
 
@@ -57,6 +94,8 @@ public sealed unsafe class Renderer : IDisposable
     readonly VkSemaphore _imageAvailable;
     readonly VkSemaphore[] _renderFinished;
     readonly VkFence _frameFence;
+    readonly VkFormat _format;
+    readonly PhysicalDevice _physicalDevice;
     readonly VkImageSubresourceRange _colorRange = new()
     {
         AspectMask = VkImageAspectFlags.ColorBit,
@@ -156,6 +195,8 @@ public sealed unsafe class Renderer : IDisposable
         var surfaceFormats = new VkSurfaceFormatKHR[physicalDevice.GetSurfaceFormatsKHR_Count(_surface)];
         physicalDevice.GetSurfaceFormatsKHR_Write(_surface, surfaceFormats);
         var format = surfaceFormats[0].Format;
+        _format = format;
+        _physicalDevice = physicalDevice;
 
         _swapchain = _device.CreateSwapchainKHR(
             new VkSwapchainCreateInfoKHR
@@ -166,7 +207,7 @@ public sealed unsafe class Renderer : IDisposable
                 ImageColorSpace = surfaceFormats[0].ColorSpace,
                 ImageExtent = _extent,
                 ImageArrayLayers = 1,
-                ImageUsage = VkImageUsageFlags.ColorAttachmentBit,
+                ImageUsage = VkImageUsageFlags.ColorAttachmentBit | VkImageUsageFlags.TransferSrcBit, // TransferSrc: screenshots
                 ImageSharingMode = VkSharingMode.Exclusive,
                 PreTransform = capabilities.CurrentTransform,
                 CompositeAlpha = compositeAlpha,
@@ -221,7 +262,13 @@ public sealed unsafe class Renderer : IDisposable
         };
         var rendering = new VkPipelineRenderingCreateInfo { ColorAttachmentCount = 1, ColorAttachmentFormats = &format };
 
-        _pipelineLayout = _device.CreatePipelineLayout([], [], null);
+        _pipelineLayout = _device.CreatePipelineLayout([],
+            [new VkPushConstantRange
+            {
+                StageFlags = VkShaderStageFlags.VertexBit | VkShaderStageFlags.FragmentBit,
+                Offset = (ByteSize32)0,
+                Size = (ByteSize32)sizeof(ShapeConstants),
+            }], null);
         _pipeline = _device.CreateGraphicsPipeline(
             VkPipelineCache.NullHandle,
             new VkGraphicsPipelineCreateInfo
@@ -264,7 +311,14 @@ public sealed unsafe class Renderer : IDisposable
         return (w, h);
     }
 
-    public void DrawFrame()
+    /// <summary>The window size in pixels, for fitting the camera.</summary>
+    public (int Width, int Height) Extent => (_extent.Width, _extent.Height);
+
+    /// <summary>
+    /// Draws <paramref name="shapes"/> in order (later ones on top). When <paramref name="screenshotPath"/>
+    /// is set, the finished frame is also saved there as a PNG.
+    /// </summary>
+    public void DrawFrame(Camera camera, ReadOnlySpan<Shape> shapes, string? screenshotPath = null)
     {
         _device.WaitForFence(_frameFence, -1);
         _device.ResetFences([_frameFence]);
@@ -297,12 +351,36 @@ public sealed unsafe class Renderer : IDisposable
             }
         );
         _commandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, _pipeline);
-        _commandBuffer.Draw(3, 1, 0, 0);
+        var aspect = _extent.Width / (float)_extent.Height;
+        var scaleY = -1f / camera.HalfHeight; // Vulkan clip space: +Y is down
+        var scaleX = 1f / (camera.HalfHeight * aspect);
+        var cameraVector = new float4(scaleX, scaleY, -camera.CenterX * scaleX, -camera.CenterY * scaleY);
+        foreach (var shape in shapes)
+        {
+            var constants = ShapeConstants.From(shape, cameraVector);
+            _commandBuffer.PushConstants(_pipelineLayout, VkShaderStageFlags.VertexBit | VkShaderStageFlags.FragmentBit, (ByteSize)0, constants);
+            _commandBuffer.Draw(6, 1, 0, 0);
+        }
         _commandBuffer.EndRendering();
 
-        Transition(image, VkImageLayout.ColorAttachmentOptimal, VkImageLayout.PresentSrcKHR,
-            VkPipelineStageFlags.ColorAttachmentOutputBit, VkPipelineStageFlags.BottomOfPipeBit,
-            VkAccessFlags.ColorAttachmentWriteBit, VkAccessFlags.None);
+        Screenshot? screenshot = null;
+        if (screenshotPath is not null)
+        {
+            screenshot = new Screenshot(this, screenshotPath);
+            Transition(image, VkImageLayout.ColorAttachmentOptimal, VkImageLayout.TransferSrcOptimal,
+                VkPipelineStageFlags.ColorAttachmentOutputBit, VkPipelineStageFlags.TransferBit,
+                VkAccessFlags.ColorAttachmentWriteBit, VkAccessFlags.TransferReadBit);
+            screenshot.RecordCopy(image);
+            Transition(image, VkImageLayout.TransferSrcOptimal, VkImageLayout.PresentSrcKHR,
+                VkPipelineStageFlags.TransferBit, VkPipelineStageFlags.BottomOfPipeBit,
+                VkAccessFlags.TransferReadBit, VkAccessFlags.None);
+        }
+        else
+        {
+            Transition(image, VkImageLayout.ColorAttachmentOptimal, VkImageLayout.PresentSrcKHR,
+                VkPipelineStageFlags.ColorAttachmentOutputBit, VkPipelineStageFlags.BottomOfPipeBit,
+                VkAccessFlags.ColorAttachmentWriteBit, VkAccessFlags.None);
+        }
 
         _commandBuffer.End();
 
@@ -320,6 +398,59 @@ public sealed unsafe class Renderer : IDisposable
                 ImageIndices = &imageIndex,
             }
         );
+
+        if (screenshot is not null)
+        {
+            _device.WaitForFence(_frameFence, -1);
+            screenshot.SaveAndDispose();
+        }
+    }
+
+    /// <summary>Host-visible copy of one swapchain image, written out as a PNG.</summary>
+    sealed class Screenshot(Renderer renderer, string path)
+    {
+        VkBuffer _buffer;
+        VkDeviceMemory _memory;
+        int Width => renderer._extent.Width;
+        int Height => renderer._extent.Height;
+
+        public void RecordCopy(VkImage image)
+        {
+            var device = renderer._device;
+            _buffer = device.CreateBuffer(new VkBufferCreateInfo
+            {
+                Size = (ByteSize64)(Width * Height * 4),
+                Usage = VkBufferUsageFlags.TransferDstBit,
+                SharingMode = VkSharingMode.Exclusive,
+            }, null);
+            _memory = device.AllocateMemory(renderer._physicalDevice, _buffer,
+                VkMemoryPropertyFlags.HostVisibleBit | VkMemoryPropertyFlags.HostCoherentBit, null);
+            device.BindBufferMemory(_buffer, _memory, (ByteSize64)0);
+            renderer._commandBuffer.CopyImageToBuffer(image, VkImageLayout.TransferSrcOptimal, _buffer,
+            [
+                new VkBufferImageCopy
+                {
+                    ImageSubresource = new VkImageSubresourceLayers { AspectMask = VkImageAspectFlags.ColorBit, LayerCount = 1 },
+                    ImageExtent = new VkExtent3D { Width = Width, Height = Height, Depth = 1 },
+                },
+            ]);
+        }
+
+        public void SaveAndDispose()
+        {
+            var device = renderer._device;
+            var pixels = new byte[Width * Height * 4];
+            // Plain vkMapMemory: MapMemory2 needs Vulkan 1.4 or VK_KHR_map_memory2, which MoltenVK may lack.
+            var mapInfo = new MapInfo(_memory);
+            var mapped = device.MapMemory(in mapInfo);
+            new ReadOnlySpan<byte>(mapped.Pointer, pixels.Length).CopyTo(pixels);
+            device.UnmapMemory(_memory);
+            device.DestroyBuffer(_buffer, null);
+            device.FreeMemory(_memory, null);
+
+            var bgra = renderer._format.ToString().StartsWith("B8G8R8A8", StringComparison.OrdinalIgnoreCase);
+            Png.WriteRgba(path, Width, Height, pixels, swapRedBlue: bgra);
+        }
     }
 
     void Transition(VkImage image, VkImageLayout from, VkImageLayout to,
