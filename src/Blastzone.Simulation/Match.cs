@@ -75,6 +75,7 @@ public sealed partial class Match
         ref var c = ref State.Characters[index];
         var a = _characters[index];
 
+        UpdateBuffers(ref c, input);
         Think(ref c, a, index, input);
         Move(ref c, a);
         if (!_stage.BlastZone.Contains(c.PositionX, c.PositionY))
@@ -84,6 +85,7 @@ public sealed partial class Match
             c.IntangibleTicks--;
         if (c.LedgeCooldown > 0)
             c.LedgeCooldown--;
+        ExpireBuffers(ref c);
         c.PreviousStickX = input.StickX;
         c.PreviousStickY = input.StickY;
         c.PreviousButtons = input.Buttons;

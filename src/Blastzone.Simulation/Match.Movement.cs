@@ -13,13 +13,64 @@ public sealed partial class Match
         c.ActionDuration = duration;
     }
 
+    /// <summary>Records presses and taps of this Tick into the Buffer Window counters.</summary>
+    void UpdateBuffers(ref CharacterState c, PlayerInput input)
+    {
+        var stick = _settings.Stick;
+        if (input.StickX >= stick.TapThreshold && c.PreviousStickX < stick.TapOriginMax)
+        {
+            c.BufferedTapRight = BufferTicks(_settings.Buffer.Dash);
+            c.BufferedTapLeft = 0;
+        }
+        if (input.StickX <= -stick.TapThreshold && -c.PreviousStickX < stick.TapOriginMax)
+        {
+            c.BufferedTapLeft = BufferTicks(_settings.Buffer.Dash);
+            c.BufferedTapRight = 0;
+        }
+    }
+
+    /// <summary>Counter value for a fresh press, so it stays usable for the Tick it happened on.</summary>
+    static int BufferTicks(int window) => 1;
+
+    static void ExpireBuffers(ref CharacterState c)
+    {
+        if (c.BufferedJump > 0) c.BufferedJump--;
+        if (c.BufferedShield > 0) c.BufferedShield--;
+        if (c.BufferedTapLeft > 0) c.BufferedTapLeft--;
+        if (c.BufferedTapRight > 0) c.BufferedTapRight--;
+        if (c.BufferedTapDown > 0) c.BufferedTapDown--;
+    }
+
+    /// <summary>The buffered horizontal tap direction (-1, +1), or 0 if none.</summary>
+    static int BufferedTap(in CharacterState c) => c.BufferedTapRight > 0 ? 1 : c.BufferedTapLeft > 0 ? -1 : 0;
+
+    static void ConsumeTap(ref CharacterState c)
+    {
+        c.BufferedTapLeft = 0;
+        c.BufferedTapRight = 0;
+    }
+
     void Think(ref CharacterState c, CharacterAttributes a, int index, PlayerInput input)
     {
+        var walk = _settings.Stick.WalkThreshold;
+
+        // Timed transitions first, so the next action already runs on this Tick.
         switch (c.CurrentAction)
         {
             case CharacterAction.Landing:
                 if (c.ActionTick >= c.ActionDuration)
                     Enter(ref c, CharacterAction.Idle);
+                break;
+            case CharacterAction.Dash:
+                if (c.ActionTick >= a.DashTicks)
+                    Enter(ref c, input.StickX * c.Facing >= walk ? CharacterAction.Run : CharacterAction.Idle);
+                break;
+            case CharacterAction.RunTurn:
+                if (c.ActionTick >= c.ActionDuration)
+                {
+                    c.Facing = -c.Facing;
+                    Enter(ref c, input.StickX * c.Facing >= walk ? CharacterAction.Run : CharacterAction.Idle);
+                }
                 break;
         }
 
@@ -31,12 +82,84 @@ public sealed partial class Match
 
     void ThinkGround(ref CharacterState c, CharacterAttributes a, PlayerInput input)
     {
-        switch (c.CurrentAction)
+        var walk = _settings.Stick.WalkThreshold;
+        var action = c.CurrentAction;
+        var actionable = action is CharacterAction.Idle or CharacterAction.Walk or CharacterAction.Teeter;
+
+        if (actionable || action == CharacterAction.Dash)
         {
+            var tap = BufferedTap(c);
+            if (tap != 0 && (actionable || tap == -c.Facing))
+            {
+                // A dash, or a Dash Dance turnaround during the initial dash.
+                ConsumeTap(ref c);
+                c.Facing = tap;
+                c.VelocityX = Fixed.FromInt(tap) * a.DashInitialSpeed;
+                Enter(ref c, CharacterAction.Dash);
+                return;
+            }
+        }
+
+        switch (action)
+        {
+            case CharacterAction.Idle:
+                if (input.StickX >= walk || input.StickX <= -walk)
+                {
+                    Enter(ref c, CharacterAction.Walk);
+                    Walk(ref c, a, input);
+                }
+                else
+                    ApplyTraction(ref c, a);
+                break;
+            case CharacterAction.Walk:
+                if (input.StickX >= walk || input.StickX <= -walk)
+                    Walk(ref c, a, input);
+                else
+                {
+                    Enter(ref c, CharacterAction.Idle);
+                    ApplyTraction(ref c, a);
+                }
+                break;
+            case CharacterAction.Teeter:
+                // Standing at an edge. Only walking away from it (or a dash, jump...) leaves Teeter.
+                if (input.StickX * TeeterSide(c) <= -walk)
+                {
+                    Enter(ref c, CharacterAction.Walk);
+                    Walk(ref c, a, input);
+                }
+                else
+                    c.VelocityX = Fixed.Zero;
+                break;
+            case CharacterAction.Dash:
+                if (c.ActionTick > 0)
+                    c.VelocityX = FixedMath.MoveToward(c.VelocityX, Fixed.FromInt(c.Facing) * a.RunSpeed, a.RunAcceleration);
+                break;
+            case CharacterAction.Run:
+                if (input.StickX * c.Facing >= walk)
+                    c.VelocityX = FixedMath.MoveToward(c.VelocityX, Fixed.FromInt(c.Facing) * a.RunSpeed, a.RunAcceleration);
+                else
+                {
+                    Enter(ref c, input.StickX * c.Facing <= -walk ? CharacterAction.RunTurn : CharacterAction.Idle, a.RunTurnTicks);
+                    ApplyTraction(ref c, a);
+                }
+                break;
             default:
                 ApplyTraction(ref c, a);
                 break;
         }
+    }
+
+    /// <summary>Which edge of its platform a teetering Character stands at: -1 left, +1 right.</summary>
+    int TeeterSide(in CharacterState c) => c.PositionX >= _platforms[c.Platform].Right ? 1 : -1;
+
+    static void Walk(ref CharacterState c, CharacterAttributes a, PlayerInput input)
+    {
+        var direction = input.StickX > 0 ? 1 : -1;
+        c.Facing = direction;
+        var deflection = input.StickX > 0 ? input.StickX : -input.StickX;
+        var target = Fixed.FromInt(direction) * a.WalkSpeed * Fixed.FromInt(deflection) / Fixed.FromInt(sbyte.MaxValue);
+        var faster = direction > 0 ? c.VelocityX > target : c.VelocityX < target;
+        c.VelocityX = FixedMath.MoveToward(c.VelocityX, target, faster ? a.Traction : a.WalkAcceleration);
     }
 
     void ThinkAir(ref CharacterState c, CharacterAttributes a, PlayerInput input)
@@ -68,6 +191,17 @@ public sealed partial class Match
         var platform = _platforms[c.Platform];
         if (c.PositionX >= platform.Left && c.PositionX <= platform.Right)
             return;
+
+        // Slow movement stops at the edge in Teeter; dashes, runs and fast slides go off it.
+        if (c.CurrentAction is not (CharacterAction.Dash or CharacterAction.Run)
+            && FixedMath.Abs(c.VelocityX) <= _settings.TeeterMaxSpeed)
+        {
+            c.PositionX = c.PositionX < platform.Left ? platform.Left : platform.Right;
+            c.VelocityX = Fixed.Zero;
+            if (c.CurrentAction != CharacterAction.Teeter)
+                Enter(ref c, CharacterAction.Teeter);
+            return;
+        }
 
         // The Ground Probe left the platform: the Character leaves the edge (ADR 0009).
         c.Platform = -1;
