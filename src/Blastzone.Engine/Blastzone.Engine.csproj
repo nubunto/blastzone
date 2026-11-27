@@ -1,18 +1,11 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- ADR 0013: rendering, input, audio and netcode on BRUTAL + SDL3. -->
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net11.0</TargetFramework>
-    <RootNamespace>_</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-
-  <!-- Temporary until the four-project restructure: keep new projects out of this glob. -->
-  <ItemGroup>
-    <Compile Remove="src/**;tests/**" />
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Ahwoo.BRUTAL.Core" Version="2026.10.4" />
@@ -20,6 +13,10 @@
     <PackageReference Include="Ahwoo.BRUTAL.ShaderC" Version="2026.10.3" />
     <PackageReference Include="Ahwoo.BRUTAL.Vulkan" Version="2026.10.3" />
     <PackageReference Include="Ahwoo.BRUTAL.Vulkan.Abstractions" Version="2026.10.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Blastzone.Simulation\Blastzone.Simulation.csproj" />
   </ItemGroup>
 
 </Project>
