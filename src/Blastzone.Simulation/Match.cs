@@ -73,6 +73,17 @@ public sealed partial class Match
     void StepCharacter(int index, PlayerInput input)
     {
         ref var c = ref State.Characters[index];
+        var a = _characters[index];
+
+        Think(ref c, a, index, input);
+        Move(ref c, a);
+        if (!_stage.BlastZone.Contains(c.PositionX, c.PositionY))
+            Spawn(ref c, index); // Milestone 2: no Knockouts or Stocks yet, just put the Character back.
+
+        if (c.IntangibleTicks > 0)
+            c.IntangibleTicks--;
+        if (c.LedgeCooldown > 0)
+            c.LedgeCooldown--;
         c.PreviousStickX = input.StickX;
         c.PreviousStickY = input.StickY;
         c.PreviousButtons = input.Buttons;
