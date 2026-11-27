@@ -75,16 +75,20 @@ public sealed partial class Match
         ref var c = ref State.Characters[index];
         var a = _characters[index];
 
-        UpdateBuffers(ref c, input);
-        Think(ref c, a, index, input);
-        Move(ref c, a);
-        if (!_stage.BlastZone.Contains(c.PositionX, c.PositionY))
-            Spawn(ref c, index); // Milestone 2: no Knockouts or Stocks yet, just put the Character back.
-
+        // Timers count down at the start of the Tick, so a value set during a Tick reads exactly at its end.
         if (c.IntangibleTicks > 0)
             c.IntangibleTicks--;
         if (c.LedgeCooldown > 0)
             c.LedgeCooldown--;
+
+        UpdateBuffers(ref c, input);
+        Think(ref c, a, index, input);
+        Move(ref c, a);
+        if (c.CurrentAction is CharacterAction.Airborne or CharacterAction.Helpless)
+            TryGrabLedge(ref c, a, index);
+        if (!_stage.BlastZone.Contains(c.PositionX, c.PositionY))
+            Spawn(ref c, index); // Milestone 2: no Knockouts or Stocks yet, just put the Character back.
+
         ExpireBuffers(ref c);
         c.PreviousStickX = input.StickX;
         c.PreviousStickY = input.StickY;

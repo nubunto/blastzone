@@ -35,8 +35,11 @@ public sealed partial class Match
             c.BufferedShield = BufferTicks(_settings.Buffer.Shield);
     }
 
-    /// <summary>Counter value for a fresh press, so it stays usable for the Tick it happened on.</summary>
-    static int BufferTicks(int window) => 1;
+    /// <summary>
+    /// Counter value for a fresh press: usable on the Tick it happens and for <paramref name="window"/> Ticks after,
+    /// since counters count down at the end of every Tick.
+    /// </summary>
+    static int BufferTicks(int window) => window + 1;
 
     static void ExpireBuffers(ref CharacterState c)
     {
@@ -90,9 +93,25 @@ public sealed partial class Match
                 }
                 ApplyTraction(ref c, a);
                 return;
+            case CharacterAction.AirDodge:
+                if (c.ActionTick >= a.AirDodgeTicks)
+                {
+                    if (_settings.AirDodge.ZeroVelocityAtEnd)
+                    {
+                        c.VelocityX = Fixed.Zero;
+                        c.VelocityY = Fixed.Zero;
+                    }
+                    Enter(ref c, _settings.AirDodge.HelplessAfter ? CharacterAction.Helpless : CharacterAction.Airborne);
+                }
+                break;
         }
 
-        if (CharacterActions.IsGrounded(c.CurrentAction))
+        if (c.CurrentAction == CharacterAction.Trumped && c.ActionTick >= c.ActionDuration)
+            Enter(ref c, CharacterAction.Airborne);
+
+        if (CharacterActions.IsOnLedge(c.CurrentAction))
+            ThinkLedge(ref c, a, input);
+        else if (CharacterActions.IsGrounded(c.CurrentAction))
             ThinkGround(ref c, a, input);
         else
             ThinkAir(ref c, a, input);
@@ -124,6 +143,16 @@ public sealed partial class Match
                 Enter(ref c, CharacterAction.Dash);
                 return;
             }
+        }
+
+        if (c.BufferedTapDown > 0 && actionable && !_platforms[c.Platform].Solid)
+        {
+            // Drop through the platform: ignore it for landing until the Ground Probe is below it.
+            c.BufferedTapDown = 0;
+            c.IgnoredPlatform = c.Platform;
+            c.Platform = -1;
+            Enter(ref c, CharacterAction.Airborne);
+            return;
         }
 
         switch (action)
@@ -192,6 +221,16 @@ public sealed partial class Match
     {
         if (c.CurrentAction == CharacterAction.Airborne)
         {
+            var tap = BufferedTap(c);
+            if (a.CanWallJump && tap != 0 && WallWithinReach(c, a, tap))
+            {
+                ConsumeTap(ref c);
+                c.Facing = -tap;
+                c.FastFalling = 0;
+                c.VelocityX = Fixed.FromInt(-tap) * a.WallJumpSpeedX;
+                c.VelocityY = a.WallJumpSpeedY;
+                return;
+            }
             if (c.BufferedJump > 0 && c.JumpsUsed < a.AirJumps)
             {
                 c.BufferedJump = 0;
@@ -201,6 +240,12 @@ public sealed partial class Match
                 c.VelocityX = DriftTarget(a, input);
                 return; // like take-off, the jump Tick moves at full jump speed
             }
+            if (c.BufferedShield > 0 && c.AirDodgeUsed == 0)
+            {
+                c.BufferedShield = 0;
+                StartAirDodge(ref c, a, input);
+                return;
+            }
             if (c.BufferedTapDown > 0 && c.VelocityY <= Fixed.Zero && c.FastFalling == 0)
             {
                 c.BufferedTapDown = 0;
@@ -208,8 +253,60 @@ public sealed partial class Match
             }
         }
 
+        else if (c.CurrentAction == CharacterAction.AirDodge)
+        {
+            // Dodge velocity is plain velocity: it decays, ignores gravity, and carries into a landing
+            // (wavedash, waveland) like any other velocity would.
+            if (c.ActionTick > 0)
+            {
+                c.VelocityX *= a.AirDodgeDecay;
+                c.VelocityY *= a.AirDodgeDecay;
+            }
+            return;
+        }
+
         Drift(ref c, a, input);
         ApplyGravity(ref c, a);
+    }
+
+    void StartAirDodge(ref CharacterState c, CharacterAttributes a, PlayerInput input)
+    {
+        c.AirDodgeUsed = 1;
+        c.FastFalling = 0;
+        var (dx, dy) = _settings.AirDodge.Directional ? EightWayDirection(input) : (0, 0);
+        var speed = dx != 0 && dy != 0 ? a.AirDodgeSpeed * FixedMath.Sqrt(Fixed.Half) : a.AirDodgeSpeed;
+        c.VelocityX = Fixed.FromInt(dx) * speed;
+        c.VelocityY = Fixed.FromInt(dy) * speed;
+        c.IntangibleTicks = c.IntangibleTicks > a.AirDodgeIntangibilityTicks ? c.IntangibleTicks : a.AirDodgeIntangibilityTicks;
+        Enter(ref c, CharacterAction.AirDodge);
+    }
+
+    /// <summary>The stick snapped to one of 8 directions, or (0, 0) below the Air Dodge threshold.</summary>
+    (int x, int y) EightWayDirection(PlayerInput input)
+    {
+        int ax = input.StickX < 0 ? -input.StickX : input.StickX;
+        int ay = input.StickY < 0 ? -input.StickY : input.StickY;
+        if (ax < _settings.Stick.AirDodgeThreshold && ay < _settings.Stick.AirDodgeThreshold)
+            return (0, 0);
+        // Sector edges at 22.5 degrees from each axis: tan(22.5) ~ 0.4142. Geometry, not a gameplay value.
+        var x = ax * 10000 >= ay * 4142 ? (input.StickX < 0 ? -1 : 1) : 0;
+        var y = ay * 10000 >= ax * 4142 ? (input.StickY < 0 ? -1 : 1) : 0;
+        return (x, y);
+    }
+
+    /// <summary>Whether a solid wall on <paramref name="side"/> (-1 left, +1 right) is within Wall Jump reach of the Collision Box.</summary>
+    bool WallWithinReach(in CharacterState c, CharacterAttributes a, int side)
+    {
+        var box = BoxAt(a, c.CurrentAction, c.PositionX, c.PositionY);
+        foreach (var p in _platforms)
+        {
+            if (!p.Solid || box.Top <= p.Bottom || box.Bottom >= p.Top)
+                continue;
+            var gap = side > 0 ? p.Left - box.Right : box.Left - p.Right;
+            if (gap >= Fixed.Zero && gap <= _settings.WallJumpReach)
+                return true;
+        }
+        return false;
     }
 
     Fixed DriftTarget(CharacterAttributes a, PlayerInput input)
@@ -241,7 +338,9 @@ public sealed partial class Match
 
     void Move(ref CharacterState c, CharacterAttributes a)
     {
-        if (CharacterActions.IsGrounded(c.CurrentAction))
+        if (CharacterActions.IsOnLedge(c.CurrentAction))
+            MoveOnLedge(ref c, a);
+        else if (CharacterActions.IsGrounded(c.CurrentAction))
             MoveGrounded(ref c, a);
         else
             MoveAirborne(ref c, a);
@@ -331,8 +430,14 @@ public sealed partial class Match
         c.AirDodgeUsed = 0;
         c.FastFalling = 0;
         c.Regrabs = 0;
+        c.Ledge = -1;
 
-        var lag = a.LandingTicks;
+        var lag = c.CurrentAction switch
+        {
+            CharacterAction.AirDodge => a.AirDodgeLandingTicks,
+            CharacterAction.Helpless => a.HelplessLandingTicks,
+            _ => a.LandingTicks,
+        };
         if (lag > 0)
             Enter(ref c, CharacterAction.Landing, lag);
         else
