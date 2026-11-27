@@ -27,6 +27,12 @@ public sealed partial class Match
             c.BufferedTapLeft = BufferTicks(_settings.Buffer.Dash);
             c.BufferedTapRight = 0;
         }
+        if (input.StickY <= -stick.DownTapThreshold && -c.PreviousStickY < stick.TapOriginMax)
+            c.BufferedTapDown = BufferTicks(_settings.Buffer.Down);
+        if (input.Holds(InputButtons.Jump) && (c.PreviousButtons & InputButtons.Jump) == 0)
+            c.BufferedJump = BufferTicks(_settings.Buffer.Jump);
+        if (input.Holds(InputButtons.Shield) && (c.PreviousButtons & InputButtons.Shield) == 0)
+            c.BufferedShield = BufferTicks(_settings.Buffer.Shield);
     }
 
     /// <summary>Counter value for a fresh press, so it stays usable for the Tick it happened on.</summary>
@@ -72,6 +78,18 @@ public sealed partial class Match
                     Enter(ref c, input.StickX * c.Facing >= walk ? CharacterAction.Run : CharacterAction.Idle);
                 }
                 break;
+            case CharacterAction.JumpSquat:
+                if (c.ActionTick >= a.JumpSquatTicks)
+                {
+                    // Still holding jump at take-off: full hop. Released: short hop.
+                    var height = input.Holds(InputButtons.Jump) ? a.FullHopHeight : a.ShortHopHeight;
+                    c.VelocityY = a.JumpVelocity(height);
+                    c.Platform = -1;
+                    Enter(ref c, CharacterAction.Airborne);
+                    return; // the take-off Tick moves at full jump speed, gravity starts next Tick
+                }
+                ApplyTraction(ref c, a);
+                return;
         }
 
         if (CharacterActions.IsGrounded(c.CurrentAction))
@@ -85,6 +103,14 @@ public sealed partial class Match
         var walk = _settings.Stick.WalkThreshold;
         var action = c.CurrentAction;
         var actionable = action is CharacterAction.Idle or CharacterAction.Walk or CharacterAction.Teeter;
+
+        if (c.BufferedJump > 0 && (actionable || action is CharacterAction.Dash or CharacterAction.Run or CharacterAction.RunTurn))
+        {
+            c.BufferedJump = 0;
+            Enter(ref c, CharacterAction.JumpSquat);
+            ApplyTraction(ref c, a);
+            return;
+        }
 
         if (actionable || action == CharacterAction.Dash)
         {
@@ -164,7 +190,43 @@ public sealed partial class Match
 
     void ThinkAir(ref CharacterState c, CharacterAttributes a, PlayerInput input)
     {
+        if (c.CurrentAction == CharacterAction.Airborne)
+        {
+            if (c.BufferedJump > 0 && c.JumpsUsed < a.AirJumps)
+            {
+                c.BufferedJump = 0;
+                c.JumpsUsed++;
+                c.FastFalling = 0;
+                c.VelocityY = a.JumpVelocity(a.DoubleJumpHeight);
+                c.VelocityX = DriftTarget(a, input);
+                return; // like take-off, the jump Tick moves at full jump speed
+            }
+            if (c.BufferedTapDown > 0 && c.VelocityY <= Fixed.Zero && c.FastFalling == 0)
+            {
+                c.BufferedTapDown = 0;
+                c.FastFalling = 1;
+            }
+        }
+
+        Drift(ref c, a, input);
         ApplyGravity(ref c, a);
+    }
+
+    Fixed DriftTarget(CharacterAttributes a, PlayerInput input)
+    {
+        var walk = _settings.Stick.WalkThreshold;
+        if (input.StickX < walk && input.StickX > -walk)
+            return Fixed.Zero;
+        return a.AirSpeed * Fixed.FromInt(input.StickX) / Fixed.FromInt(sbyte.MaxValue);
+    }
+
+    /// <summary>Air control: accelerate toward the stick's share of air speed, air friction above it or with no stick.</summary>
+    void Drift(ref CharacterState c, CharacterAttributes a, PlayerInput input)
+    {
+        var target = DriftTarget(a, input);
+        var accelerating = target != Fixed.Zero
+            && (target > Fixed.Zero ? c.VelocityX < target : c.VelocityX > target);
+        c.VelocityX = FixedMath.MoveToward(c.VelocityX, target, accelerating ? a.AirAcceleration : a.AirFriction);
     }
 
     static void ApplyTraction(ref CharacterState c, CharacterAttributes a) =>
@@ -172,7 +234,9 @@ public sealed partial class Match
 
     static void ApplyGravity(ref CharacterState c, CharacterAttributes a)
     {
-        c.VelocityY = FixedMath.Max(c.VelocityY - a.Gravity, -a.MaxFallSpeed);
+        c.VelocityY = c.FastFalling != 0
+            ? -a.FastFallSpeed
+            : FixedMath.Max(c.VelocityY - a.Gravity, -a.MaxFallSpeed);
     }
 
     void Move(ref CharacterState c, CharacterAttributes a)
