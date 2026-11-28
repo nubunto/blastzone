@@ -1,0 +1,17 @@
+{
+  // One solid main platform with grabbable ledges, two side platforms and a top platform (drop-through).
+  "name": "Proving Grounds",
+  "platforms": [
+    { "left": -70, "right": 70, "top": 0, "bottom": -20, "solid": true, "grabbableLedges": true },
+    { "left": -58, "right": -22, "top": 30, "bottom": 30, "solid": false, "grabbableLedges": false },
+    { "left": 22, "right": 58, "top": 30, "bottom": 30, "solid": false, "grabbableLedges": false },
+    { "left": -18, "right": 18, "top": 58, "bottom": 58, "solid": false, "grabbableLedges": false }
+  ],
+  "spawns": [
+    { "x": -35, "y": 0, "facing": 1 },
+    { "x": 35, "y": 0, "facing": -1 },
+    { "x": -40, "y": 30, "facing": 1 },
+    { "x": 40, "y": 30, "facing": -1 }
+  ],
+  "blastZone": { "left": -220, "right": 220, "bottom": -150, "top": 200 }
+}

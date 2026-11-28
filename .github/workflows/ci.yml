@@ -20,9 +20,9 @@ jobs:
         os: [macos-latest, windows-latest] # macOS ARM64 and Windows x64 (brief: first vertical slice)
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '11.0.x'
 
@@ -50,7 +50,7 @@ jobs:
           echo "Build failed with BZS001 as expected."
           rm "$probe"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: determinism-${{ matrix.os }}
           path: ${{ runner.temp }}/determinism-${{ matrix.os }}.txt
@@ -61,7 +61,7 @@ jobs:
     needs: build-test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: determinism-*
           path: hashes

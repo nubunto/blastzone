@@ -1,0 +1,42 @@
+{
+  // Fast and light: 3 jumps in all (ground jump + 2 double jumps), can Wall Jump.
+  "name": "Kestrel",
+  "weight": 75,
+  "ground": {
+    "walkSpeed": 1.5, "walkAcceleration": 0.2,
+    "dashInitialSpeed": 1.9, "dashTicks": 11,
+    "runSpeed": 2.2, "runAcceleration": 0.12, "runTurnTicks": 6,
+    "traction": 0.08
+  },
+  "air": {
+    "airSpeed": 0.9, "airAcceleration": 0.08, "airFriction": 0.02,
+    "gravity": 0.23, "maxFallSpeed": 2.8, "fastFallSpeed": 3.4
+  },
+  "jump": {
+    "jumpSquatTicks": 3,
+    "fullHopHeight": 36, "shortHopHeight": 14, "doubleJumpHeight": 32,
+    "airJumps": 2,
+    "landingTicks": 4, "helplessLandingTicks": 10
+  },
+  "airDodge": { "speed": 3.1, "decay": 0.9, "ticks": 25, "intangibilityTicks": 20, "landingTicks": 10 },
+  "wallJump": { "enabled": true, "speedX": 1.6, "speedY": 2.8 },
+  "ledge": {
+    "grabHalfWidth": 9, "grabBottom": 8, "grabTop": 22,
+    "hangOffsetX": 4, "hangOffsetY": 14,
+    "actionableTicks": 6,
+    "getupTicks": 24, "getupDistance": 10, "getupIntangibilityTicks": 20,
+    "rollTicks": 32, "rollDistance": 30, "rollIntangibilityTicks": 24,
+    "jumpHeight": 34
+  },
+  "collisionBoxes": {
+    "standing":  { "width": 8, "height": 16 },
+    "crouching": { "width": 8, "height": 10 },
+    "airborne":  { "width": 8, "height": 14 },
+    "ledge":     { "width": 6, "height": 14 }
+  },
+  // Capsules relative to the Ground Probe, facing right. Equal ends make a circle.
+  "hurtboxes": [
+    { "x1": 0, "y1": 5, "x2": 0, "y2": 12, "radius": 4.5 },
+    { "x1": 1, "y1": 17, "x2": 1, "y2": 17, "radius": 3.5 }
+  ]
+}

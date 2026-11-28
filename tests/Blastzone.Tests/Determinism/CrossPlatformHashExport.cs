@@ -27,13 +27,23 @@ public class CrossPlatformHashExport
     static string Build()
     {
         var builder = new StringBuilder();
-        builder.Append("# Blastzone determinism hashes, format 1\n");
+        builder.Append("# Blastzone determinism hashes, format 2\n");
         builder.Append("fixed-point ").Append(FixedPointDigest().ToString("x16", CultureInfo.InvariantCulture)).Append('\n');
 
         var hashes = TestMatches.StraightPlayback(InputStreams.Generate());
         for (var tick = 0; tick < hashes.Length; tick++)
             builder.Append("tick ").Append(tick.ToString(CultureInfo.InvariantCulture))
                 .Append(' ').Append(hashes[tick].ToString("x16", CultureInfo.InvariantCulture)).Append('\n');
+
+        // The scripted stream exercises every movement option (see ScriptedStreamTests).
+        var scripted = ScriptedStreams.Generate();
+        var match = ScriptedStreams.CreateMatch();
+        for (var tick = 0; tick < InputStreams.DefaultTicks; tick++)
+        {
+            match.Step(TestMatches.InputsAt(scripted, tick));
+            builder.Append("scripted ").Append(tick.ToString(CultureInfo.InvariantCulture))
+                .Append(' ').Append(match.State.ComputeHash().ToString("x16", CultureInfo.InvariantCulture)).Append('\n');
+        }
         return builder.ToString();
     }
 

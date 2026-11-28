@@ -148,6 +148,68 @@ _Avoid_: Speed DI
 Pressing Shield as a launched Character hits a surface, which cancels the knockback.
 _Avoid_: Break fall, ukemi
 
+## Movement
+
+**Dash Dance**:
+Tapping the other way during a dash's initial Ticks, which turns the dash around.
+_Avoid_: Foxtrot, dash back
+
+**Teeter**:
+Standing at a platform edge after walking or sliding slowly into it, instead of leaving it. Dashes, runs and fast slides still go off the edge. The speed threshold is a setting.
+_Avoid_: Edge balance, wobble
+
+**Jump Squat**:
+The Ticks between pressing jump on the ground and leaving it. Releasing jump during it makes a Short Hop; holding it, a Full Hop.
+_Avoid_: Jump startup, prejump
+
+**Short Hop**:
+A ground jump to the Character's short hop height. See Jump Squat.
+_Avoid_: Small jump
+
+**Full Hop**:
+A ground jump to the Character's full hop height. See Jump Squat.
+_Avoid_: Big jump
+
+**Double Jump**:
+A jump in the air. Each Character has a set number per airtime, restored on landing or grabbing a ledge.
+_Avoid_: Air jump, midair jump
+
+**Fast-fall**:
+Tapping down at or after the peak of a jump to fall at the Character's fast-fall speed.
+_Avoid_: Fast drop
+
+**Drop-through Platform**:
+A platform with only a top surface: it catches a falling Ground Probe, can be passed from below, and a down tap drops through it.
+_Avoid_: Soft platform, pass-through platform
+
+**Air Dodge**:
+A dodge in the air with Intangibility. Its knobs (directional or neutral, velocity zeroed at the end, Helpless afterwards) are settings, so styles such as Melee, Ultimate or Rivals 2 are presets in data.
+_Avoid_: Air roll
+
+**Helpless**:
+Airborne and unable to act until landing or grabbing a ledge, as after some Air Dodges.
+_Avoid_: Special fall, freefall
+
+**Wavedash**:
+An Air Dodge into the ground right after leaving it, so the Character slides along it. Not a mechanic of its own: it falls out of the Air Dodge's velocity and traction.
+_Avoid_: Wave dash
+
+**Waveland**:
+An Air Dodge into a platform from the air, sliding on landing. Same physics as a Wavedash.
+_Avoid_: Wave land
+
+**Wall Jump**:
+Tapping toward a wall while airborne beside it to jump away from it. Each Character can or can't, in data.
+_Avoid_: Wall kick
+
+**Regrab**:
+Grabbing a ledge again before standing on the Stage. Each Regrab gives less Intangibility; standing on the Stage resets the count.
+_Avoid_: Ledge refresh
+
+**Ledgedash**:
+Dropping from a ledge and immediately jumping and Air Dodging onto the Stage. A setting lets leftover ledge Intangibility carry into the drop or jump for a number of Ticks.
+_Avoid_: Ledge wavedash
+
 ## Stage Collision
 
 **Collision Box**:

@@ -7,6 +7,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <!-- Game data (settings, Characters, Stages) ships next to the executable and loads at startup. -->
+  <ItemGroup>
+    <None Include="Data\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Blastzone.Engine\Blastzone.Engine.csproj" />
     <ProjectReference Include="..\Blastzone.Simulation\Blastzone.Simulation.csproj" />
